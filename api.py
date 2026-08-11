@@ -2,6 +2,8 @@ from flask import Flask, jsonify
 from config import PORT, DEBUG
 from admin import get_drivers, approve_driver, reject_driver
 from database import init_db
+from orders import create_order, get_orders
+from drivers import update_driver_location, get_nearest_drivers
 from auth import (
     register_passenger,
     login_passenger,
@@ -15,7 +17,14 @@ try:
     init_db()
 except Exception as e:
     print("Database init error:", e)
+@app.post("/driver/location")
+def driver_location():
+    return update_driver_location()
 
+
+@app.post("/drivers/nearest")
+def drivers_nearest():
+    return get_nearest_drivers()
 @app.get("/")
 def home():
     return jsonify({
@@ -52,6 +61,16 @@ def auth_driver_register():
 @app.post("/auth/driver/login")
 def auth_driver_login():
     return login_driver()
+
+
+@app.post("/orders")
+def orders_create():
+    return create_order()
+
+
+@app.get("/orders")
+def orders_list():
+    return get_orders()
 
 
 @app.get("/admin/drivers")
