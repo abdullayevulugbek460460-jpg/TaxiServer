@@ -3,7 +3,11 @@ from config import PORT, DEBUG
 from admin import get_drivers, approve_driver, reject_driver
 from database import init_db
 from orders import create_order, get_orders
-from drivers import update_driver_location, get_nearest_drivers
+from drivers import (
+    update_driver_location,
+    get_nearest_drivers,
+    update_driver_online
+)
 from auth import (
     register_passenger,
     login_passenger,
@@ -20,7 +24,15 @@ except Exception as e:
 @app.post("/driver/location")
 def driver_location():
     return update_driver_location()
+@app.post("/driver/<int:driver_id>/online")
+def driver_online(driver_id):
+    from flask import request
 
+    data = request.get_json(silent=True) or {}
+    data["driver_id"] = driver_id
+    request._cached_json = (data, data)
+
+    return update_driver_online()
 
 @app.post("/drivers/nearest")
 def drivers_nearest():

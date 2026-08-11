@@ -207,3 +207,71 @@ def haversine_distance(lat1, lon1, lat2, lon2):
     c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
 
     return earth_radius * c
+def update_driver_online():
+    data = request.get_json(silent=True) or {}
+
+    if "driver_id" not in data or "online" not in data:
+        return jsonify({
+            "success": False,
+            "message": "driver_id va online majburiy"
+        }), 400
+
+    try:
+        driver_id = int(data["driver_id"])
+        online = bool(data["online"])
+
+        with get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT id, approved
+                    FROM drivers
+                    WHERE id = %s
+                    """,
+                    (driver_id,)
+                )
+
+                driver = cur.fetchone()
+
+                if not driver:
+                    return jsonify({
+                        "success": False,
+                        "message": "Haydovchi topilmadi"
+                    }), 404
+
+                if not driver[1]:
+                    return jsonify({
+                        "success": False,
+                        "message": "Haydovchi hali tasdiqlanmagan"
+                    }), 403
+
+                cur.execute(
+                    """
+                    UPDATE drivers
+                    SET online = %s
+                    WHERE id = %s
+                    """,
+                    (online, driver_id)
+                )
+
+        return jsonify({
+            "success": True,
+            "message": "Haydovchi online holati yangilandi",
+            "driver": {
+                "id": driver_id,
+                "online": online
+            }
+        }), 200
+
+    except (ValueError, TypeError):
+        return jsonify({
+            "success": False,
+            "message": "driver_id yoki online noto‘g‘ri"
+        }), 400
+
+    except Exception as e:
+        print("Driver online error:", e)
+        return jsonify({
+            "success": False,
+            "message": "Server xatosi"
+        }), 500
