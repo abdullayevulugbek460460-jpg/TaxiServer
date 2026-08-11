@@ -1,8 +1,8 @@
-from flask import Flask, jsonify
+from flask import Flask, jsonify, request
 from config import PORT, DEBUG
 from admin import get_drivers, approve_driver, reject_driver
 from database import init_db
-from orders import create_order, get_orders
+from orders import create_order, get_orders, accept_order, update_order_status
 from drivers import (
     update_driver_location,
     get_nearest_drivers,
@@ -74,6 +74,22 @@ def auth_driver_register():
 def auth_driver_login():
     return login_driver()
 
+@app.post("/orders/<int:order_id>/accept")
+def order_accept(order_id):
+    data = request.get_json(silent=True) or {}
+    data["order_id"] = order_id
+    request._cached_json = (data, data)
+
+    return accept_order()
+
+
+@app.post("/orders/<int:order_id>/status")
+def order_status(order_id):
+    data = request.get_json(silent=True) or {}
+    data["order_id"] = order_id
+    request._cached_json = (data, data)
+
+    return update_order_status()
 
 @app.post("/orders")
 def orders_create():
