@@ -1,31 +1,29 @@
-import hashlib
-import secrets
 import time
+import jwt
 
 from flask import request, jsonify
 from werkzeug.security import generate_password_hash, check_password_hash
 
-
-passengers = {}
-drivers = {}
-
-_tokens = {}
-
-
-def _new_token(user_type, user_id):
-    token = secrets.token_urlsafe(32)
-
-    _tokens[token] = {
-        "type": user_type,
-        "id": user_id,
-        "created_at": time.time()
-    }
-
-    return token
+from config import JWT_SECRET
+from database import get_connection
 
 
 def _json():
     return request.get_json(silent=True) or {}
+
+
+def _new_token(user_type, user_id):
+    payload = {
+        "type": user_type,
+        "id": int(user_id),
+        "iat": int(time.time())
+    }
+
+    return jwt.encode(
+        payload,
+        JWT_SECRET,
+        algorithm="HS256"
+    )
 
 
 def register_passenger():
@@ -47,30 +45,49 @@ def register_passenger():
             "message": "Parol kamida 4 ta belgidan iborat bo‘lsin"
         }), 400
 
-    if phone in passengers:
+    password_hash = generate_password_hash(password)
+
+    try:
+        with get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    SELECT id
+                    FROM users
+                    WHERE phone = %s
+                """, (phone,))
+
+                if cur.fetchone():
+                    return jsonify({
+                        "success": False,
+                        "message": "Bu telefon raqami allaqachon ro‘yxatdan o‘tgan"
+                    }), 409
+
+                cur.execute("""
+                    INSERT INTO users
+                    (name, phone, password_hash)
+                    VALUES (%s, %s, %s)
+                    RETURNING id
+                """, (name, phone, password_hash))
+
+                user_id = cur.fetchone()[0]
+
+        return jsonify({
+            "success": True,
+            "message": "Yo‘lovchi muvaffaqiyatli ro‘yxatdan o‘tdi",
+            "user": {
+                "id": user_id,
+                "name": name,
+                "phone": phone
+            }
+        }), 201
+
+    except Exception as e:
+        print("Passenger register error:", e)
+
         return jsonify({
             "success": False,
-            "message": "Bu telefon raqami allaqachon ro‘yxatdan o‘tgan"
-        }), 409
-
-    user_id = len(passengers) + 1
-
-    passengers[phone] = {
-        "id": user_id,
-        "name": name,
-        "phone": phone,
-        "password_hash": generate_password_hash(password)
-    }
-
-    return jsonify({
-        "success": True,
-        "message": "Yo‘lovchi muvaffaqiyatli ro‘yxatdan o‘tdi",
-        "user": {
-            "id": user_id,
-            "name": name,
-            "phone": phone
-        }
-    }), 201
+            "message": "Server xatosi"
+        }), 500
 
 
 def login_passenger():
@@ -79,29 +96,52 @@ def login_passenger():
     phone = str(data.get("phone", "")).strip()
     password = str(data.get("password", ""))
 
-    user = passengers.get(phone)
-
-    if not user or not check_password_hash(
-        user["password_hash"],
-        password
-    ):
+    if not phone or not password:
         return jsonify({
             "success": False,
-            "message": "Telefon yoki parol noto‘g‘ri"
-        }), 401
+            "message": "Telefon va parol kerak"
+        }), 400
 
-    token = _new_token("passenger", user["id"])
+    try:
+        with get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    SELECT id, name, phone, password_hash
+                    FROM users
+                    WHERE phone = %s
+                """, (phone,))
 
-    return jsonify({
-        "success": True,
-        "message": "Login muvaffaqiyatli",
-        "token": token,
-        "user": {
-            "id": user["id"],
-            "name": user["name"],
-            "phone": user["phone"]
-        }
-    })
+                user = cur.fetchone()
+
+        if not user or not check_password_hash(
+            user[3],
+            password
+        ):
+            return jsonify({
+                "success": False,
+                "message": "Telefon yoki parol noto‘g‘ri"
+            }), 401
+
+        token = _new_token("passenger", user[0])
+
+        return jsonify({
+            "success": True,
+            "message": "Login muvaffaqiyatli",
+            "token": token,
+            "user": {
+                "id": user[0],
+                "name": user[1],
+                "phone": user[2]
+            }
+        })
+
+    except Exception as e:
+        print("Passenger login error:", e)
+
+        return jsonify({
+            "success": False,
+            "message": "Server xatosi"
+        }), 500
 
 
 def register_driver():
@@ -133,48 +173,84 @@ def register_driver():
             "message": "Parol kamida 4 ta belgidan iborat bo‘lsin"
         }), 400
 
-    for driver in drivers.values():
-        if driver["phone"] == phone:
-            return jsonify({
-                "success": False,
-                "message": "Bu telefon raqami band"
-            }), 409
+    password_hash = generate_password_hash(password)
 
-        if driver["login"].lower() == login.lower():
-            return jsonify({
-                "success": False,
-                "message": "Bu login band"
-            }), 409
+    try:
+        with get_connection() as conn:
+            with conn.cursor() as cur:
 
-    driver_id = len(drivers) + 1
+                cur.execute("""
+                    SELECT id
+                    FROM drivers
+                    WHERE phone = %s
+                """, (phone,))
 
-    drivers[driver_id] = {
-        "id": driver_id,
-        "name": name,
-        "phone": phone,
-        "login": login,
-        "password_hash": generate_password_hash(password),
-        "car_model": car_model,
-        "car_number": car_number,
-        "approved": False,
-        "online": False,
-        "balance": 0
-    }
+                if cur.fetchone():
+                    return jsonify({
+                        "success": False,
+                        "message": "Bu telefon raqami band"
+                    }), 409
 
-    return jsonify({
-        "success": True,
-        "message": "Haydovchi ro‘yxatdan o‘tdi. Admin tasdig‘i kutilmoqda.",
-        "driver": {
-            "id": driver_id,
-            "name": name,
-            "phone": phone,
-            "login": login,
-            "car_model": car_model,
-            "car_number": car_number,
-            "approved": False,
-            "online": False
-        }
-    }), 201
+                cur.execute("""
+                    SELECT id
+                    FROM drivers
+                    WHERE LOWER(login) = LOWER(%s)
+                """, (login,))
+
+                if cur.fetchone():
+                    return jsonify({
+                        "success": False,
+                        "message": "Bu login band"
+                    }), 409
+
+                cur.execute("""
+                    INSERT INTO drivers
+                    (
+                        name,
+                        phone,
+                        login,
+                        password_hash,
+                        car_model,
+                        car_number,
+                        approved,
+                        online,
+                        balance
+                    )
+                    VALUES (%s, %s, %s, %s, %s, %s, FALSE, FALSE, 0)
+                    RETURNING id
+                """, (
+                    name,
+                    phone,
+                    login,
+                    password_hash,
+                    car_model,
+                    car_number
+                ))
+
+                driver_id = cur.fetchone()[0]
+
+        return jsonify({
+            "success": True,
+            "message": "Haydovchi ro‘yxatdan o‘tdi. Admin tasdig‘i kutilmoqda.",
+            "driver": {
+                "id": driver_id,
+                "name": name,
+                "phone": phone,
+                "login": login,
+                "car_model": car_model,
+                "car_number": car_number,
+                "approved": False,
+                "online": False
+            }
+        }), 201
+
+    except Exception as e:
+        print("Driver register error:", e)
+
+        return jsonify({
+            "success": False,
+            "message": "Server xatosi"
+        }), 500
 
 
 def login_driver():
@@ -183,46 +259,74 @@ def login_driver():
     login = str(data.get("login", "")).strip()
     password = str(data.get("password", ""))
 
-    driver = None
-
-    for item in drivers.values():
-        if item["login"].lower() == login.lower():
-            driver = item
-            break
-
-    if not driver or not check_password_hash(
-        driver["password_hash"],
-        password
-    ):
+    if not login or not password:
         return jsonify({
             "success": False,
-            "message": "Login yoki parol noto‘g‘ri"
-        }), 401
+            "message": "Login va parol kerak"
+        }), 400
 
-    if not driver["approved"]:
+    try:
+        with get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    SELECT
+                        id,
+                        name,
+                        phone,
+                        login,
+                        password_hash,
+                        car_model,
+                        car_number,
+                        approved,
+                        online,
+                        balance
+                    FROM drivers
+                    WHERE LOWER(login) = LOWER(%s)
+                """, (login,))
+
+                driver = cur.fetchone()
+
+        if not driver or not check_password_hash(
+            driver[4],
+            password
+        ):
+            return jsonify({
+                "success": False,
+                "message": "Login yoki parol noto‘g‘ri"
+            }), 401
+
+        if not driver[7]:
+            return jsonify({
+                "success": False,
+                "message": "Admin hali haydovchini tasdiqlamagan"
+            }), 403
+
+        token = _new_token("driver", driver[0])
+
+        return jsonify({
+            "success": True,
+            "message": "Login muvaffaqiyatli",
+            "token": token,
+            "driver": {
+                "id": driver[0],
+                "name": driver[1],
+                "phone": driver[2],
+                "login": driver[3],
+                "car_model": driver[5],
+                "car_number": driver[6],
+                "approved": driver[7],
+                "online": driver[8],
+                "balance": float(driver[9])
+            }
+        })
+
+    except Exception as e:
+        print("Driver login error:", e)
+
         return jsonify({
             "success": False,
-            "message": "Admin hali haydovchini tasdiqlamagan"
-        }), 403
-
-    token = _new_token("driver", driver["id"])
-
-    return jsonify({
-        "success": True,
-        "message": "Login muvaffaqiyatli",
-        "token": token,
-        "driver": {
-            "id": driver["id"],
-            "name": driver["name"],
-            "phone": driver["phone"],
-            "login": driver["login"],
-            "car_model": driver["car_model"],
-            "car_number": driver["car_number"],
-            "approved": driver["approved"],
-            "online": driver["online"],
-            "balance": driver["balance"]
-        }
-    })
+            "message": "Server xatosi"
+        }), 500
 
 
 def get_token_data():
@@ -233,4 +337,11 @@ def get_token_data():
 
     token = header[7:].strip()
 
-    return _tokens.get(token)
+    try:
+        return jwt.decode(
+            token,
+            JWT_SECRET,
+            algorithms=["HS256"]
+        )
+    except jwt.InvalidTokenError:
+        return None

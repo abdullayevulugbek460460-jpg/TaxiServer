@@ -1,7 +1,7 @@
 from flask import request, jsonify
 
 from config import ADMIN_API_KEY
-from auth import drivers
+from database import get_connection
 
 
 def check_admin():
@@ -20,25 +20,53 @@ def get_drivers():
             "message": "Admin ruxsati rad etildi"
         }), 401
 
-    result = []
+    try:
+        with get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    SELECT
+                        id,
+                        name,
+                        phone,
+                        login,
+                        car_model,
+                        car_number,
+                        approved,
+                        online,
+                        balance
+                    FROM drivers
+                    ORDER BY id DESC
+                """)
 
-    for driver in drivers.values():
-        result.append({
-            "id": driver["id"],
-            "name": driver["name"],
-            "phone": driver["phone"],
-            "login": driver["login"],
-            "car_model": driver["car_model"],
-            "car_number": driver["car_number"],
-            "approved": driver["approved"],
-            "online": driver["online"],
-            "balance": driver["balance"]
+                rows = cur.fetchall()
+
+        drivers = []
+
+        for driver in rows:
+            drivers.append({
+                "id": driver[0],
+                "name": driver[1],
+                "phone": driver[2],
+                "login": driver[3],
+                "car_model": driver[4],
+                "car_number": driver[5],
+                "approved": driver[6],
+                "online": driver[7],
+                "balance": float(driver[8])
+            })
+
+        return jsonify({
+            "success": True,
+            "drivers": drivers
         })
 
-    return jsonify({
-        "success": True,
-        "drivers": result
-    })
+    except Exception as e:
+        print("Get drivers error:", e)
+
+        return jsonify({
+            "success": False,
+            "message": "Server xatosi"
+        }), 500
 
 
 def approve_driver(driver_id):
@@ -49,32 +77,41 @@ def approve_driver(driver_id):
         }), 401
 
     try:
-        driver_id = int(driver_id)
-    except (TypeError, ValueError):
+        with get_connection() as conn:
+            with conn.cursor() as cur:
+
+                cur.execute("""
+                    UPDATE drivers
+                    SET approved = TRUE
+                    WHERE id = %s
+                    RETURNING id, name, approved
+                """, (driver_id,))
+
+                driver = cur.fetchone()
+
+        if not driver:
+            return jsonify({
+                "success": False,
+                "message": "Haydovchi topilmadi"
+            }), 404
+
+        return jsonify({
+            "success": True,
+            "message": "Haydovchi tasdiqlandi",
+            "driver": {
+                "id": driver[0],
+                "name": driver[1],
+                "approved": driver[2]
+            }
+        })
+
+    except Exception as e:
+        print("Approve driver error:", e)
+
         return jsonify({
             "success": False,
-            "message": "Driver ID noto‘g‘ri"
-        }), 400
-
-    driver = drivers.get(driver_id)
-
-    if not driver:
-        return jsonify({
-            "success": False,
-            "message": "Haydovchi topilmadi"
-        }), 404
-
-    driver["approved"] = True
-
-    return jsonify({
-        "success": True,
-        "message": "Haydovchi tasdiqlandi",
-        "driver": {
-            "id": driver["id"],
-            "name": driver["name"],
-            "approved": True
-        }
-    })
+            "message": "Server xatosi"
+        }), 500
 
 
 def reject_driver(driver_id):
@@ -85,25 +122,41 @@ def reject_driver(driver_id):
         }), 401
 
     try:
-        driver_id = int(driver_id)
-    except (TypeError, ValueError):
+        with get_connection() as conn:
+            with conn.cursor() as cur:
+
+                cur.execute("""
+                    UPDATE drivers
+                    SET
+                        approved = FALSE,
+                        online = FALSE
+                    WHERE id = %s
+                    RETURNING id, name
+                """, (driver_id,))
+
+                driver = cur.fetchone()
+
+        if not driver:
+            return jsonify({
+                "success": False,
+                "message": "Haydovchi topilmadi"
+            }), 404
+
+        return jsonify({
+            "success": True,
+            "message": "Haydovchi rad etildi",
+            "driver": {
+                "id": driver[0],
+                "name": driver[1],
+                "approved": False,
+                "online": False
+            }
+        })
+
+    except Exception as e:
+        print("Reject driver error:", e)
+
         return jsonify({
             "success": False,
-            "message": "Driver ID noto‘g‘ri"
-        }), 400
-
-    driver = drivers.get(driver_id)
-
-    if not driver:
-        return jsonify({
-            "success": False,
-            "message": "Haydovchi topilmadi"
-        }), 404
-
-    driver["approved"] = False
-    driver["online"] = False
-
-    return jsonify({
-        "success": True,
-        "message": "Haydovchi rad etildi"
-    })
+            "message": "Server xatosi"
+        }), 500
