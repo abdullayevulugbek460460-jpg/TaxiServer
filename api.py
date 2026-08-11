@@ -1,7 +1,7 @@
 from flask import Flask, jsonify
 from config import PORT, DEBUG
 from admin import get_drivers, approve_driver, reject_driver
-
+from database import init_db
 from auth import (
     register_passenger,
     login_passenger,
@@ -11,6 +11,10 @@ from auth import (
 
 app = Flask(__name__)
 
+try:
+    init_db()
+except Exception as e:
+    print("Database init error:", e)
 
 @app.get("/")
 def home():
