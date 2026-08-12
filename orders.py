@@ -136,29 +136,55 @@ def create_order():
 
 
 def get_orders():
+    driver_id = request.args.get("driver_id", type=int)
+
     try:
         with get_connection() as conn:
             with conn.cursor() as cur:
 
-                cur.execute(
-                    """
-                    SELECT
-                        id,
-                        passenger_id,
-                        driver_id,
-                        pickup_lat,
-                        pickup_lng,
-                        destination_lat,
-                        destination_lng,
-                        estimated_distance_km,
-                        estimated_price,
-                        status,
-                        created_at,
-                        updated_at
-                    FROM orders
-                    ORDER BY id DESC
-                    """
-                )
+                if driver_id:
+                    cur.execute(
+                        """
+                        SELECT
+                            id,
+                            passenger_id,
+                            driver_id,
+                            pickup_lat,
+                            pickup_lng,
+                            destination_lat,
+                            destination_lng,
+                            estimated_distance_km,
+                            estimated_price,
+                            status,
+                            created_at,
+                            updated_at
+                        FROM orders
+                        WHERE status = 'NEW'
+                           OR driver_id = %s
+                        ORDER BY id DESC
+                        """,
+                        (driver_id,)
+                    )
+                else:
+                    cur.execute(
+                        """
+                        SELECT
+                            id,
+                            passenger_id,
+                            driver_id,
+                            pickup_lat,
+                            pickup_lng,
+                            destination_lat,
+                            destination_lng,
+                            estimated_distance_km,
+                            estimated_price,
+                            status,
+                            created_at,
+                            updated_at
+                        FROM orders
+                        ORDER BY id DESC
+                        """
+                    )
 
                 rows = cur.fetchall()
 
@@ -192,6 +218,8 @@ def get_orders():
             "success": False,
             "message": "Server xatosi"
         }), 500
+
+
 def accept_order():
     data = request.get_json(silent=True) or {}
 
