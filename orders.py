@@ -1,4 +1,5 @@
 from flask import request, jsonify
+import math
 from database import get_connection
 
 
@@ -27,8 +28,33 @@ def create_order():
         destination_lat = float(data["destination_lat"])
         destination_lng = float(data["destination_lng"])
 
-        distance_km = float(data.get("estimated_distance_km", 0))
-        price = float(data.get("estimated_price", 0))
+        # Masofani koordinatalardan avtomatik hisoblash (Haversine)
+        lat1 = math.radians(pickup_lat)
+        lon1 = math.radians(pickup_lng)
+        lat2 = math.radians(destination_lat)
+        lon2 = math.radians(destination_lng)
+
+        dlat = lat2 - lat1
+        dlon = lon2 - lon1
+
+        a = (
+            math.sin(dlat / 2) ** 2
+            + math.cos(lat1)
+            * math.cos(lat2)
+            * math.sin(dlon / 2) ** 2
+        )
+
+        distance_km = 6371.0 * 2 * math.atan2(
+            math.sqrt(a),
+            math.sqrt(1 - a)
+        )
+
+        distance_km = round(distance_km, 2)
+
+        # Tarif: boshlang'ich 5000 so'm + har km uchun 2000 so'm
+        start_price = 5000
+        price_per_km = 2000
+        price = round(start_price + distance_km * price_per_km, 0)
 
         with get_connection() as conn:
             with conn.cursor() as cur:
