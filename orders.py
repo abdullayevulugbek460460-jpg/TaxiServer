@@ -309,7 +309,11 @@ def update_order_status():
 
                 cur.execute(
                     """
-                    SELECT id, driver_id, status, estimated_price
+                    SELECT
+                        id,
+                        driver_id,
+                        status,
+                        estimated_price
                     FROM orders
                     WHERE id = %s
                     FOR UPDATE
@@ -371,19 +375,65 @@ def update_order_status():
                         "message": "Buyurtma holati o‘zgartirilmadi"
                     }), 409
 
-                # COMPLETED bo‘lganda haydovchi balansiga narxning
-                # 90% qismini qo‘shamiz (10% komissiya).
+                # COMPLETED bo‘lganda haydovchiga 90% daromad.
+                # Har bir order uchun faqat bir marta hisoblanadi.
                 if new_status == "COMPLETED":
                     commission = round(price * 0.10, 2)
                     driver_income = round(price - commission, 2)
 
                     cur.execute(
                         """
+                        SELECT id
+                        FROM driver_earnings
+                        WHERE order_id = %s
+                        FOR UPDATE
+                        """,
+                        (order_id,)
+                    )
+
+                    existing_earning = cur.fetchone()
+
+                    if existing_earning:
+                        return jsonify({
+                            "success": False,
+                            "message": "Bu buyurtma uchun daromad allaqachon hisoblangan"
+                        }), 409
+
+                    cur.execute(
+                        """
                         UPDATE drivers
                         SET balance = balance + %s
                         WHERE id = %s
+                        RETURNING id
                         """,
                         (driver_income, driver_id)
+                    )
+
+                    balance_updated = cur.fetchone()
+
+                    if not balance_updated:
+                        return jsonify({
+                            "success": False,
+                            "message": "Haydovchi topilmadi"
+                        }), 404
+
+                    cur.execute(
+                        """
+                        INSERT INTO driver_earnings (
+                            driver_id,
+                            order_id,
+                            amount,
+                            commission,
+                            created_at
+                        )
+                        VALUES (%s, %s, %s, %s, CURRENT_TIMESTAMP)
+                        """,
+                        (
+                            driver_id,
+                            order_id,
+                            driver_income,
+                            commission
+                        )
                     )
 
         return jsonify({
@@ -404,11 +454,6 @@ def update_order_status():
 
     except Exception as e:
         print("Update order status error:", e)
-
-        return jsonify({
-            "success": False,
-            "message": "Server xatosi"
-        }), 500
 
         return jsonify({
             "success": False,
