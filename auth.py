@@ -31,43 +31,46 @@ def register_passenger():
 
     name = str(data.get("name", "")).strip()
     phone = str(data.get("phone", "")).strip()
-    password = str(data.get("password", ""))
 
-    if not name or not phone or not password:
+    if not name or not phone:
         return jsonify({
             "success": False,
-            "message": "Ism, telefon va parol kerak"
+            "message": "Ism va telefon raqami kerak"
         }), 400
-
-    if len(password) < 4:
-        return jsonify({
-            "success": False,
-            "message": "Parol kamida 4 ta belgidan iborat bo‘lsin"
-        }), 400
-
-    password_hash = generate_password_hash(password)
 
     try:
         with get_connection() as conn:
             with conn.cursor() as cur:
+
                 cur.execute("""
-                    SELECT id
+                    SELECT id, name, phone
                     FROM users
                     WHERE phone = %s
                 """, (phone,))
 
-                if cur.fetchone():
+                existing = cur.fetchone()
+
+                if existing:
                     return jsonify({
-                        "success": False,
-                        "message": "Bu telefon raqami allaqachon ro‘yxatdan o‘tgan"
-                    }), 409
+                        "success": True,
+                        "message": "Bu telefon raqami avval ro‘yxatdan o‘tgan",
+                        "user": {
+                            "id": existing[0],
+                            "name": existing[1],
+                            "phone": existing[2]
+                        }
+                    }), 200
 
                 cur.execute("""
                     INSERT INTO users
                     (name, phone, password_hash)
                     VALUES (%s, %s, %s)
                     RETURNING id
-                """, (name, phone, password_hash))
+                """, (
+                    name,
+                    phone,
+                    "NO_PASSWORD"
+                ))
 
                 user_id = cur.fetchone()[0]
 
@@ -88,7 +91,6 @@ def register_passenger():
             "success": False,
             "message": "Server xatosi"
         }), 500
-
 
 def login_passenger():
     data = _json()
@@ -345,3 +347,60 @@ def get_token_data():
         )
     except jwt.InvalidTokenError:
         return None
+
+def change_driver_password():
+    data = _json()
+
+    driver_id = data.get("driver_id")
+    new_password = str(data.get("new_password", ""))
+
+    if not driver_id or not new_password:
+        return jsonify({
+            "success": False,
+            "message": "driver_id va new_password majburiy"
+        }), 400
+
+    if len(new_password) < 4:
+        return jsonify({
+            "success": False,
+            "message": "Parol kamida 4 ta belgidan iborat bo‘lishi kerak"
+        }), 400
+
+    try:
+        password_hash = generate_password_hash(new_password)
+
+        with get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    UPDATE drivers
+                    SET password_hash = %s
+                    WHERE id = %s
+                    RETURNING id, name, login
+                """, (password_hash, int(driver_id)))
+
+                driver = cur.fetchone()
+
+        if not driver:
+            return jsonify({
+                "success": False,
+                "message": "Haydovchi topilmadi"
+            }), 404
+
+        return jsonify({
+            "success": True,
+            "message": "Haydovchi paroli muvaffaqiyatli o‘zgartirildi",
+            "driver": {
+                "id": driver[0],
+                "name": driver[1],
+                "login": driver[2]
+            }
+        })
+
+    except Exception as e:
+        print("Change driver password error:", e)
+
+        return jsonify({
+            "success": False,
+            "message": "Server xatosi"
+        }), 500
+

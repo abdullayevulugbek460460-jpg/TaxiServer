@@ -1,6 +1,6 @@
 from flask import Flask, jsonify, request
 from config import PORT, DEBUG
-from admin import get_drivers, approve_driver, reject_driver
+from admin import get_drivers, approve_driver, reject_driver, check_admin
 from database import init_db
 from orders import create_order, get_orders, accept_order, update_order_status
 from drivers import (
@@ -12,7 +12,8 @@ from auth import (
     register_passenger,
     login_passenger,
     register_driver,
-    login_driver
+    login_driver,
+    change_driver_password
 )
 
 app = Flask(__name__)
@@ -101,6 +102,19 @@ def orders_list():
     return get_orders()
 
 
+@app.post("/admin/drivers/<int:driver_id>/password")
+def admin_change_driver_password(driver_id):
+    if not check_admin():
+        return jsonify({
+            "success": False,
+            "message": "Admin ruxsati rad etildi"
+        }), 401
+
+    data = request.get_json(silent=True) or {}
+    data["driver_id"] = driver_id
+    request._cached_json = (data, data)
+
+    return change_driver_password()
 @app.get("/admin/drivers")
 def admin_drivers():
     return get_drivers()
