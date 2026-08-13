@@ -471,6 +471,32 @@ def update_order_status():
 
                     cur.execute(
                         """
+                        SELECT id, balance
+                        FROM drivers
+                        WHERE id = %s
+                        FOR UPDATE
+                        """,
+                        (driver_id,)
+                    )
+
+                    driver_row = cur.fetchone()
+
+                    if not driver_row:
+                        return jsonify({
+                            "success": False,
+                            "message": "Haydovchi topilmadi"
+                        }), 404
+
+                    current_balance = float(driver_row[1] or 0)
+
+                    if current_balance < commission:
+                        return jsonify({
+                            "success": False,
+                            "message": f"Balans yetarli emas. Kerak: {commission:.0f} so‘m"
+                        }), 400
+
+                    cur.execute(
+                        """
                         SELECT id
                         FROM driver_earnings
                         WHERE order_id = %s
@@ -487,6 +513,23 @@ def update_order_status():
                             "message": "Bu buyurtma uchun daromad allaqachon hisoblangan"
                         }), 409
 
+                    cur.execute(
+                        """
+                        UPDATE drivers
+                        SET balance = balance - %s
+                        WHERE id = %s
+                        RETURNING id, balance
+                        """,
+                        (commission, driver_id)
+                    )
+
+                    balance_updated = cur.fetchone()
+
+                    if not balance_updated:
+                        return jsonify({
+                            "success": False,
+                            "message": "Haydovchi balansi yangilanmadi"
+                        }), 400
 
                     cur.execute(
                         """
@@ -507,15 +550,16 @@ def update_order_status():
                         )
                     )
 
+
         return jsonify({
             "success": True,
             "message": f"Buyurtma statusi {new_status} bo‘ldi",
-            "order": {
-                "id": order_id,
-                "driver_id": driver_id,
-                "status": new_status
-            }
-        }), 200
+              "order": {
+                  "id": order_id,
+                  "driver_id": driver_id,
+                  "status": new_status
+              }
+          }), 200
 
     except (ValueError, TypeError):
         return jsonify({
