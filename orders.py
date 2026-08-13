@@ -487,23 +487,6 @@ def update_order_status():
                             "message": "Bu buyurtma uchun daromad allaqachon hisoblangan"
                         }), 409
 
-                    cur.execute(
-                        """
-                        UPDATE drivers
-                        SET balance = balance + %s
-                        WHERE id = %s
-                        RETURNING id
-                        """,
-                        (driver_income, driver_id)
-                    )
-
-                    balance_updated = cur.fetchone()
-
-                    if not balance_updated:
-                        return jsonify({
-                            "success": False,
-                            "message": "Haydovchi topilmadi"
-                        }), 404
 
                     cur.execute(
                         """
