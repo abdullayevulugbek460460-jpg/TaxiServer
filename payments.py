@@ -144,3 +144,113 @@ def get_driver_balance():
             "success": False,
             "message": "Server xatosi"
         }), 500
+
+def get_topup_status():
+    driver_id = request.args.get("driver_id", type=int)
+
+    if not driver_id or driver_id <= 0:
+        return jsonify({
+            "success": False,
+            "message": "driver_id noto‘g‘ri"
+        }), 400
+
+    try:
+        with get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    SELECT
+                        id,
+                        amount,
+                        card_number,
+                        status,
+                        created_at,
+                        processed_at
+                    FROM balance_topup_requests
+                    WHERE driver_id = %s
+                    ORDER BY id DESC
+                    LIMIT 1
+                """, (driver_id,))
+
+                payment = cur.fetchone()
+
+        if not payment:
+            return jsonify({
+                "success": True,
+                "payment": None
+            }), 200
+
+        return jsonify({
+            "success": True,
+            "payment": {
+                "id": payment[0],
+                "amount": float(payment[1]),
+                "card_number": payment[2],
+                "status": payment[3],
+                "created_at": payment[4].isoformat()
+                    if payment[4] else None,
+                "processed_at": payment[5].isoformat()
+                    if payment[5] else None
+            }
+        }), 200
+
+    except Exception as e:
+        print("Get topup status error:", e)
+
+        return jsonify({
+            "success": False,
+            "message": "Server xatosi"
+        }), 500
+
+def get_topup_history():
+    driver_id = request.args.get("driver_id", type=int)
+
+    if not driver_id or driver_id <= 0:
+        return jsonify({
+            "success": False,
+            "message": "driver_id noto‘g‘ri"
+        }), 400
+
+    try:
+        with get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    SELECT
+                        id,
+                        amount,
+                        card_number,
+                        status,
+                        created_at,
+                        processed_at
+                    FROM balance_topup_requests
+                    WHERE driver_id = %s
+                    ORDER BY id DESC
+                """, (driver_id,))
+
+                rows = cur.fetchall()
+
+        payments = []
+
+        for row in rows:
+            payments.append({
+                "id": row[0],
+                "amount": float(row[1]),
+                "card_number": row[2],
+                "status": row[3],
+                "created_at": row[4].isoformat()
+                    if row[4] else None,
+                "processed_at": row[5].isoformat()
+                    if row[5] else None
+            })
+
+        return jsonify({
+            "success": True,
+            "payments": payments
+        }), 200
+
+    except Exception as e:
+        print("Get topup history error:", e)
+
+        return jsonify({
+            "success": False,
+            "message": "Server xatosi"
+        }), 500

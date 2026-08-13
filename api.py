@@ -6,16 +6,15 @@ from admin import (
     reject_driver,
     check_admin,
     get_topup_requests,
-    approve_topup_request
+    approve_topup_request,
+    reject_topup_request
 )
 from database import init_db
 from payments import (
     create_topup_request,
-    get_driver_balance
-)
-from payments import (
-    create_topup_request,
-    get_driver_balance
+    get_driver_balance,
+    get_topup_status,
+    get_topup_history
 )
 from orders import create_order, get_orders, accept_order, update_order_status
 from drivers import (
@@ -98,6 +97,15 @@ def balance_topup():
 @app.get("/balance")
 def driver_balance():
     return get_driver_balance()
+@app.get("/balance/topup/status")
+def balance_topup_status():
+    return get_topup_status()
+
+
+@app.get("/balance/topups")
+def balance_topups():
+    return get_topup_history()
+
 
 
 @app.post("/orders/<int:order_id>/accept")
@@ -148,6 +156,11 @@ def admin_topup_requests():
 @app.post("/admin/balance/topup/<int:payment_id>/approve")
 def admin_topup_approve(payment_id):
     return approve_topup_request(payment_id)
+
+
+@app.post("/admin/balance/topup/<int:payment_id>/reject")
+def admin_topup_reject(payment_id):
+    return reject_topup_request(payment_id)
 
 
 @app.get("/admin/drivers")
