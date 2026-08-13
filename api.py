@@ -1,7 +1,22 @@
 from flask import Flask, jsonify, request
 from config import PORT, DEBUG
-from admin import get_drivers, approve_driver, reject_driver, check_admin
+from admin import (
+    get_drivers,
+    approve_driver,
+    reject_driver,
+    check_admin,
+    get_topup_requests,
+    approve_topup_request
+)
 from database import init_db
+from payments import (
+    create_topup_request,
+    get_driver_balance
+)
+from payments import (
+    create_topup_request,
+    get_driver_balance
+)
 from orders import create_order, get_orders, accept_order, update_order_status
 from drivers import (
     update_driver_location,
@@ -75,6 +90,16 @@ def auth_driver_register():
 def auth_driver_login():
     return login_driver()
 
+@app.post("/balance/topup")
+def balance_topup():
+    return create_topup_request()
+
+
+@app.get("/balance")
+def driver_balance():
+    return get_driver_balance()
+
+
 @app.post("/orders/<int:order_id>/accept")
 def order_accept(order_id):
     data = request.get_json(silent=True) or {}
@@ -115,6 +140,16 @@ def admin_change_driver_password(driver_id):
     request._cached_json = (data, data)
 
     return change_driver_password()
+@app.get("/admin/balance/topups")
+def admin_topup_requests():
+    return get_topup_requests()
+
+
+@app.post("/admin/balance/topup/<int:payment_id>/approve")
+def admin_topup_approve(payment_id):
+    return approve_topup_request(payment_id)
+
+
 @app.get("/admin/drivers")
 def admin_drivers():
     return get_drivers()
