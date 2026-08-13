@@ -218,7 +218,7 @@ def register_driver():
                         online,
                         balance
                     )
-                    VALUES (%s, %s, %s, %s, %s, %s, FALSE, FALSE, 0)
+                    VALUES (%s, %s, %s, %s, %s, %s, TRUE, FALSE, 0)
                     RETURNING id
                 """, (
                     name,
