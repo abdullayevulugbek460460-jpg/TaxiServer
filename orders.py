@@ -137,12 +137,36 @@ def create_order():
 
 def get_orders():
     driver_id = request.args.get("driver_id", type=int)
+    passenger_id = request.args.get("passenger_id", type=int)
 
     try:
         with get_connection() as conn:
             with conn.cursor() as cur:
 
-                if driver_id:
+                if passenger_id:
+                    cur.execute(
+                        """
+                        SELECT
+                            id,
+                            passenger_id,
+                            driver_id,
+                            pickup_lat,
+                            pickup_lng,
+                            destination_lat,
+                            destination_lng,
+                            estimated_distance_km,
+                            estimated_price,
+                            status,
+                            created_at,
+                            updated_at
+                        FROM orders
+                        WHERE passenger_id = %s
+                        ORDER BY id DESC
+                        """,
+                        (passenger_id,)
+                    )
+
+                elif driver_id:
                     cur.execute(
                         """
                         SELECT
@@ -165,6 +189,7 @@ def get_orders():
                         """,
                         (driver_id,)
                     )
+
                 else:
                     cur.execute(
                         """
@@ -239,7 +264,7 @@ def accept_order():
                 # Haydovchini tekshirish
                 cur.execute(
                     """
-                    SELECT id, approved, online
+                    SELECT id, approved, online, balance
                     FROM drivers
                     WHERE id = %s
                     """,
@@ -264,6 +289,15 @@ def accept_order():
                     return jsonify({
                         "success": False,
                         "message": "Haydovchi offline"
+                    }), 403
+
+                # Balans tekshiruvi
+                balance = float(driver[3] or 0)
+
+                if balance <= 0:
+                    return jsonify({
+                        "success": False,
+                        "message": "Balansingiz 0 so‘m. Buyurtma qabul qilish uchun balansni to‘ldiring."
                     }), 403
 
                 # ATOMIC ACCEPT:

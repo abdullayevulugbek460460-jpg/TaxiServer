@@ -90,6 +90,30 @@ def init_db():
             """)
 
             cur.execute("""
+                CREATE TABLE IF NOT EXISTS balance_topup_requests (
+                    id BIGSERIAL PRIMARY KEY,
+                    driver_id BIGINT NOT NULL REFERENCES drivers(id)
+                        ON DELETE CASCADE,
+                    amount NUMERIC(12,2) NOT NULL CHECK (amount > 0),
+                    card_number VARCHAR(50) NOT NULL,
+                    status VARCHAR(20) NOT NULL DEFAULT 'PENDING',
+                    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+                    processed_at TIMESTAMPTZ,
+                    processed_by VARCHAR(120)
+                )
+            """)
+
+            cur.execute("""
+                CREATE INDEX IF NOT EXISTS idx_balance_topup_driver
+                ON balance_topup_requests(driver_id)
+            """)
+
+            cur.execute("""
+                CREATE INDEX IF NOT EXISTS idx_balance_topup_status
+                ON balance_topup_requests(status)
+            """)
+
+            cur.execute("""
                 CREATE TABLE IF NOT EXISTS settings (
                     key VARCHAR(80) PRIMARY KEY,
                     value TEXT NOT NULL
