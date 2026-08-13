@@ -320,3 +320,79 @@ def approve_topup_request(payment_id):
             "success": False,
             "message": "Server xatosi"
         }), 500
+
+def reject_topup_request(payment_id):
+    if not check_admin():
+        return jsonify({
+            "success": False,
+            "message": "Admin ruxsati rad etildi"
+        }), 401
+
+    try:
+        payment_id = int(payment_id)
+        admin_key = request.headers.get("X-Admin-Key", "")
+
+        with get_connection() as conn:
+            with conn.cursor() as cur:
+
+                # Faqat PENDING so‘rovni bloklab olamiz
+                cur.execute("""
+                    SELECT
+                        id,
+                        driver_id,
+                        amount,
+                        status
+                    FROM balance_topup_requests
+                    WHERE id = %s
+                    FOR UPDATE
+                """, (payment_id,))
+
+                payment = cur.fetchone()
+
+                if not payment:
+                    return jsonify({
+                        "success": False,
+                        "message": "To‘lov so‘rovi topilmadi"
+                    }), 404
+
+                if payment[3] != "PENDING":
+                    return jsonify({
+                        "success": False,
+                        "message": "Bu to‘lov so‘rovi allaqachon qayta ishlangan",
+                        "status": payment[3]
+                    }), 409
+
+                # Rad etamiz.
+                # DIQQAT: balansga hech qanday pul qo‘shilmaydi.
+                cur.execute("""
+                    UPDATE balance_topup_requests
+                    SET
+                        status = 'REJECTED',
+                        processed_at = CURRENT_TIMESTAMP,
+                        processed_by = %s
+                    WHERE id = %s
+                """, (
+                    admin_key,
+                    payment_id
+                ))
+
+        return jsonify({
+            "success": True,
+            "message": "To‘lov rad etildi",
+            "payment_id": payment_id,
+            "status": "REJECTED"
+        }), 200
+
+    except (ValueError, TypeError):
+        return jsonify({
+            "success": False,
+            "message": "payment_id noto‘g‘ri"
+        }), 400
+
+    except Exception as e:
+        print("Reject topup error:", e)
+
+        return jsonify({
+            "success": False,
+            "message": "Server xatosi"
+        }), 500
