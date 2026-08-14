@@ -364,6 +364,10 @@ def accept_order():
 
     except Exception as e:
         print("Accept order error:", e)
+        return jsonify({
+            "success": False,
+            "message": "Server xatosi"
+        }), 500
 
 def update_order_status():
     data = request.get_json(silent=True) or {}

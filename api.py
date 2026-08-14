@@ -14,9 +14,11 @@ from payments import (
     create_topup_request,
     get_driver_balance,
     get_topup_status,
-    get_topup_history
+    get_topup_history,
+    get_payment_card
 )
 from orders import create_order, get_orders, accept_order, update_order_status
+from ratings import submit_driver_rating, get_driver_profile
 from drivers import (
     update_driver_location,
     get_nearest_drivers,
@@ -89,6 +91,11 @@ def auth_driver_register():
 def auth_driver_login():
     return login_driver()
 
+@app.get("/payment/card")
+def payment_card():
+    return get_payment_card()
+
+
 @app.post("/balance/topup")
 def balance_topup():
     return create_topup_request()
@@ -108,6 +115,12 @@ def balance_topups():
 
 
 
+
+@app.get("/driver/profile")
+def driver_profile():
+    return get_driver_profile()
+
+
 @app.post("/orders/<int:order_id>/accept")
 def order_accept(order_id):
     data = request.get_json(silent=True) or {}
@@ -124,6 +137,12 @@ def order_status(order_id):
     request._cached_json = (data, data)
 
     return update_order_status()
+
+@app.post("/driver/rating")
+def driver_rating():
+    return submit_driver_rating()
+
+
 
 @app.post("/orders")
 def orders_create():

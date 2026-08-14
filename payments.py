@@ -10,6 +10,19 @@ PAYMENT_CARD_NUMBER = os.environ.get(
 )
 
 
+def get_payment_card():
+    if not PAYMENT_CARD_NUMBER:
+        return jsonify({
+            "success": False,
+            "message": "To‘lov kartasi sozlanmagan"
+        }), 500
+
+    return jsonify({
+        "success": True,
+        "payment_card": PAYMENT_CARD_NUMBER
+    }), 200
+
+
 def create_topup_request():
     data = request.get_json(silent=True) or {}
 

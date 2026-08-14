@@ -63,6 +63,18 @@ def init_db():
             """)
 
             cur.execute("""
+                CREATE TABLE IF NOT EXISTS driver_ratings (
+                    id BIGSERIAL PRIMARY KEY,
+                    driver_id BIGINT NOT NULL REFERENCES drivers(id)
+                        ON DELETE CASCADE,
+                    order_id BIGINT,
+                    rating INTEGER NOT NULL CHECK (rating >= 1 AND rating <= 5),
+                    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+                    UNIQUE(driver_id, order_id)
+                )
+            """)
+
+            cur.execute("""
                 CREATE TABLE IF NOT EXISTS driver_locations (
                     driver_id BIGINT PRIMARY KEY REFERENCES drivers(id)
                         ON DELETE CASCADE,
@@ -114,20 +126,21 @@ def init_db():
             """)
 
             cur.execute("""
-                CREATE TABLE IF NOT EXISTS settings (
-                    key VARCHAR(80) PRIMARY KEY,
-                    value TEXT NOT NULL
+                CREATE TABLE IF NOT EXISTS driver_tokens (
+                    id BIGSERIAL PRIMARY KEY,
+                    driver_id BIGINT NOT NULL REFERENCES drivers(id)
+                        ON DELETE CASCADE,
+                    token TEXT UNIQUE NOT NULL,
+                    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
                 )
             """)
 
             cur.execute("""
-                INSERT INTO settings (key, value)
-                VALUES
-                    ('start_price', '5000'),
-                    ('price_per_km', '2000'),
-                    ('minimum_price', '10000'),
-                    ('commission_percent', '10')
-                ON CONFLICT (key) DO NOTHING
+                CREATE TABLE IF NOT EXISTS passenger_tokens (
+                    id BIGSERIAL PRIMARY KEY,
+                    passenger_id BIGINT NOT NULL REFERENCES users(id)
+                        ON DELETE CASCADE,
+                    token TEXT UNIQUE NOT NULL,
+                    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+                )
             """)
-
-    return True
